@@ -15,17 +15,17 @@ class ReporteController extends Controller
 
         $productosCriticos = DB::table('Producto as p')
             ->leftJoin('Movimiento_stock as m', 'p.id_producto', '=', 'm.id_producto')
+           // Modifica el SELECT y el HAVING para manejar los valores nulos
             ->select(
                 'p.id_producto',
                 'p.nombre',
                 'p.marca',
                 'p.codigo_barras',
-                // La magia: Calculamos el balance actual (Entradas - Salidas)
-                DB::raw("SUM(CASE WHEN m.tipo_movimiento = 'Entrada' THEN m.cantidad ELSE -m.cantidad END) as stock_actual")
+                DB::raw("COALESCE(SUM(CASE WHEN m.tipo_movimiento = 'Entrada' THEN m.cantidad ELSE -m.cantidad END), 0) as stock_actual")
             )
             ->groupBy('p.id_producto', 'p.nombre', 'p.marca', 'p.codigo_barras')
-            // Solo queremos los que tengan menos del límite
-            ->havingRaw("SUM(CASE WHEN m.tipo_movimiento = 'Entrada' THEN m.cantidad ELSE -m.cantidad END) <= ?", [$limite])
+            ->havingRaw("COALESCE(SUM(CASE WHEN m.tipo_movimiento = 'Entrada' THEN m.cantidad ELSE -m.cantidad END), 0) <= ?", [$limite])
+            ->orderBy('p.id_producto', 'asc')
             ->get();
 
         if ($productosCriticos->isEmpty()) {

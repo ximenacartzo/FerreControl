@@ -1,14 +1,47 @@
 <template>
-  <form @submit.prevent="handleLogin" class="p-4 border rounded">
-    <input v-model="form.id_usuario" type="number" placeholder="ID de Usuario" class="block w-full mb-2 p-2 border" />
-    <input v-model="form.contrasena" type="password" placeholder="Contraseña" class="block w-full mb-2 p-2 border" />
-    <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded">Entrar</button>
-  </form>
+  <div class="card w-full max-w-[350px] !p-8 shadow-xl border-none">
+    <div class="text-center mb-8">
+      <div class="bg-slate-900 w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center text-white text-2xl font-bold">
+        FC
+      </div>
+      <h2 class="text-2xl font-bold" style="color: var(--text)">FerreControl</h2>
+      <p class="text-muted small">Gestión de Inventarios</p>
+    </div>
+
+    <form @submit.prevent="handleLogin" class="flex flex-col">
+      <div class="mb-4">
+        <label class="block text-sm font-bold mb-1" style="color: var(--text)">ID de Usuario</label>
+        <input 
+          v-model="form.id_usuario" 
+          type="number" 
+          placeholder="Ingresa tu ID" 
+          class="block w-full focus:ring-0" 
+        />
+      </div>
+
+      <div class="mb-6">
+        <label class="block text-sm font-bold mb-1" style="color: var(--text)">Contraseña</label>
+        <input 
+          v-model="form.contrasena" 
+          type="password" 
+          placeholder="••••••••" 
+          class="block w-full focus:ring-0" 
+        />
+      </div>
+
+      <button type="submit" class="btn btn-primary w-full py-3 font-bold transition-all hover:opacity-90">
+        Entrar al Sistema
+      </button>
+
+      <p class="mt-6 text-center text-[10px] text-muted uppercase tracking-widest">
+        Acceso restringido a personal
+      </p>
+    </form>
+  </div>
 </template>
 
 <script setup>
 import { ref } from 'vue';
-// the helper in utils already handles storage
 import { auth } from '../../utils/auth';
 
 const form = ref({ id_usuario: '', contrasena: '' });
@@ -26,12 +59,13 @@ const handleLogin = async () => {
     if (response.ok) {
       auth.setToken(data.token);
       auth.setUser(data.usuario);
-      window.location.href = '/dashboard'; // Redirige al éxito
+      window.location.href = '/dashboard'; 
     } else {
-      alert(data.msj);
+      alert(data.msj || "Credenciales incorrectas");
     }
   } catch (error) {
     console.error("Error en el login:", error);
+    alert("No se pudo conectar con el servidor");
   }
 };
 </script>

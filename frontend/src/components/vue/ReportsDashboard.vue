@@ -1,49 +1,69 @@
 <template>
-  <div class="p-4">
-    <h2 class="text-2xl font-bold mb-4">Reportes</h2>
+  <div class="max-w-6xl mx-auto">
+    <header class="mb-10">
+      <h2 class="text-3xl font-bold tracking-tight" style="color: var(--text)">Resumen General</h2>
+      <p class="text-muted mt-1 small">Análisis de rendimiento y alertas de inventario</p>
+    </header>
 
-    <section class="mb-8">
-      <h3 class="text-xl font-semibold mb-2">Ganancias</h3>
-      <div v-if="loadingGanancias" class="py-2">Cargando...</div>
-      <div v-else-if="errorGanancias" class="text-red-500">{{ errorGanancias }}</div>
-      <div v-else-if="ganancias && ganancias.resumen">
-        <ul class="space-y-1">
-          <li>Total operaciones: {{ ganancias.resumen.total_operaciones }}</li>
-          <li>Ingresos brutos: {{ ganancias.resumen.ingresos_brutos }}</li>
-          <li>Costo inventario: {{ ganancias.resumen.costo_inventario }}</li>
-          <li>Ganancia real: {{ ganancias.resumen.ganancia_real }}</li>
-          <li>Margen promedio: {{ ganancias.resumen.margen_promedio }}</li>
-        </ul>
-      </div>
-      <div v-else class="text-gray-500">Sin información disponible</div>
+    <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+      <div v-if="loadingGanancias" class="col-span-4 py-10 text-center text-muted italic">Cargando métricas...</div>
+      
+      <template v-else-if="ganancias && ganancias.resumen">
+        <div class="card hover:shadow-md transition-shadow">
+          <h3 class="text-muted text-[10px] font-bold uppercase tracking-widest">Operaciones</h3>
+          <p class="text-3xl font-bold mt-2" style="color: var(--text)">{{ ganancias.resumen.total_operaciones }}</p>
+        </div>
+        
+        <div class="card hover:shadow-md transition-shadow">
+          <h3 class="text-muted text-[10px] font-bold uppercase tracking-widest">Ingresos Brutos</h3>
+          <p class="text-3xl font-bold mt-2" style="color: var(--text)">${{ ganancias.resumen.ingresos_brutos }}</p>
+        </div>
+
+        <div class="card hover:shadow-md transition-shadow">
+          <h3 class="text-muted text-[10px] font-bold uppercase tracking-widest">Ganancia Real</h3>
+          <p class="text-3xl font-bold mt-2 text-emerald-600">${{ ganancias.resumen.ganancia_real }}</p>
+        </div>
+
+        <div class="card hover:shadow-md transition-shadow">
+          <h3 class="text-muted text-[10px] font-bold uppercase tracking-widest">Margen</h3>
+          <p class="text-3xl font-bold mt-2 text-blue-600">{{ ganancias.resumen.margen_promedio }}%</p>
+        </div>
+      </template>
     </section>
 
-    <section>
-      <h3 class="text-xl font-semibold mb-2">Stock Crítico</h3>
-      <div v-if="loadingStock" class="py-2">Cargando...</div>
-      <div v-else-if="errorStock" class="text-red-500">{{ errorStock }}</div>
-      <div v-else>
-        <table class="min-w-full bg-white border">
+    <section class="card overflow-hidden !p-0">
+      <div class="p-6 border-b bg-slate-50/50" style="border-color: var(--border)">
+        <h3 class="font-bold" style="color: var(--text)">Alertas de Stock Crítico</h3>
+      </div>
+      
+      <div class="overflow-x-auto">
+        <table class="w-full">
           <thead>
             <tr>
-              <th class="px-2 py-1 border">ID</th>
-              <th class="px-2 py-1 border">Nombre</th>
-              <th class="px-2 py-1 border">Marca</th>
-              <th class="px-2 py-1 border">Stock actual</th>
+              <th>ID</th>
+              <th>PRODUCTO</th>
+              <th>MARCA</th>
+              <th class="text-right">ESTADO</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="p in stockCritico.data" :key="p.id_producto">
-              <td class="px-2 py-1 border">{{ p.id_producto }}</td>
-              <td class="px-2 py-1 border">{{ p.nombre }}</td>
-              <td class="px-2 py-1 border">{{ p.marca }}</td>
-              <td class="px-2 py-1 border">{{ p.stock_actual }}</td>
+              <td class="font-mono text-xs text-muted">#00{{ p.id_producto }}</td>
+              <td class="font-semibold">{{ p.nombre }}</td>
+              <td>
+                <span class="small px-2 py-0.5 rounded border text-muted" style="border-color: var(--border); background: var(--bg)">
+                  {{ p.marca }}
+                </span>
+              </td>
+              <td class="text-right">
+                <span :class="p.stock_actual <= 0 ? 'text-red-600' : 'text-orange-600'" 
+                      class="small font-bold uppercase tracking-tighter">
+                  {{ p.stock_actual <= 0 ? 'Sin Stock' : 'Bajo Stock' }} ({{ p.stock_actual }})
+                </span>
+              </td>
             </tr>
           </tbody>
         </table>
-        <div v-if="stockCritico.data.length === 0" class="mt-2">
-          {{ stockCritico.msj || 'No hay productos críticos' }}
-        </div>
       </div>
     </section>
   </div>
@@ -55,7 +75,6 @@ import { apiFetch } from '../../utils/api';
 
 const ganancias = ref(null);
 const stockCritico = ref({ data: [] });
-
 const loadingGanancias = ref(false);
 const loadingStock = ref(false);
 const errorGanancias = ref(null);
@@ -63,16 +82,11 @@ const errorStock = ref(null);
 
 const loadGanancias = async () => {
   loadingGanancias.value = true;
-  errorGanancias.value = null;
   try {
     const res = await apiFetch('/reportes/ganancias');
-    if (res.ok) {
-      ganancias.value = await res.json();
-    } else {
-      errorGanancias.value = 'Error al obtener reporte de ganancias';
-    }
+    if (res.ok) ganancias.value = await res.json();
   } catch (e) {
-    errorGanancias.value = 'No se pudo conectar';
+    errorGanancias.value = 'Error de conexión';
   } finally {
     loadingGanancias.value = false;
   }
@@ -80,16 +94,11 @@ const loadGanancias = async () => {
 
 const loadStock = async () => {
   loadingStock.value = true;
-  errorStock.value = null;
   try {
     const res = await apiFetch('/reportes/stock-critico');
-    if (res.ok) {
-      stockCritico.value = await res.json();
-    } else {
-      errorStock.value = 'Error al obtener stock crítico';
-    }
+    if (res.ok) stockCritico.value = await res.json();
   } catch (e) {
-    errorStock.value = 'No se pudo conectar';
+    errorStock.value = 'Error de conexión';
   } finally {
     loadingStock.value = false;
   }

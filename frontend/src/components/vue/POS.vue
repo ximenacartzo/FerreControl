@@ -54,6 +54,24 @@
       </table>
       <div class="mt-2 text-right font-bold">Total: {{ cartTotal.toFixed(2) }}</div>
       <div class="flex justify-end mt-4">
+      <div class="mt-4 p-3 bg-gray-50 rounded border">
+      <div class="flex justify-between items-center mb-2">
+        <label class="font-bold text-gray-700">Monto Recibido:</label>
+        <input 
+          v-model.number="amountPaid" 
+          type="number" 
+          class="border p-2 w-32 text-right font-mono text-lg"
+          placeholder="0.00"
+        />
+      </div>
+      
+      <div v-if="amountPaid > 0" class="flex justify-between items-center text-lg">
+        <span class="font-semibold">Cambio:</span>
+        <span :class="amountPaid < cartTotal ? 'text-red-600' : 'text-green-600'" class="font-bold font-mono">
+          {{ (amountPaid - cartTotal).toFixed(2) }}
+        </span>
+      </div>
+    </div>
         <button
           @click="processSale"
           class="bg-blue-600 text-white px-4 py-2 rounded"
@@ -77,6 +95,7 @@ import { auth } from '../../utils/auth';
 const products = ref([]);
 const loadingProducts = ref(false);
 const errorProducts = ref(null);
+const amountPaid = ref(0); // Nueva variable para el pago del cliente
 
 const search = ref('');
 const altMessage = ref('');
@@ -131,50 +150,68 @@ function addToCart(product) {
 }
 
 async function processSale() {
+  // 1. Validación de seguridad: No dejar vender si falta dinero
+  if (amountPaid.value < cartTotal.value) {
+    saleError.value = true;
+    saleMessage.value = 'El monto recibido es menor al total de la venta.';
+    return;
+  }
+
   saleMessage.value = '';
   saleError.value = false;
   processingSale.value = true;
+
   try {
     const user = auth.getUser();
-    const id_usuario = user?.id_usuario || null;
-    // create pedido cliente
+    const id_usuario = user?.id_usuario || 1;
+
+    // 2. Crear el pedido (Encabezado y detalles)
     const pedidoPayload = {
       total: cartTotal.value,
       impuesto: 0,
       tipo_pedido: 'Mostrador',
       id_usuario,
-      id_cliente: 1, // placeholder; maybe choose from UI
+      id_cliente: 1, // Placeholder
       productos: cart.value.map(i => ({
         id_producto: i.product.id_producto,
         cantidad: i.quantity,
         precio_unitario: i.product.precio_venta,
       })),
     };
+
     const r1 = await apiFetch('/pedidos-cliente', {
       method: 'POST',
       body: JSON.stringify(pedidoPayload),
     });
-    if (!r1.ok) throw new Error('No se pudo crear el pedido');
-    const dataPedido = await r1.json();
-    const id_pedido_cliente = dataPedido.pedido?.id_pedido_cliente || dataPedido.pedido?.id; // adjust
 
-    // realizar venta inmediata
+    if (!r1.ok) throw new Error('No se pudo crear el pedido');
+    
+    const dataPedido = await r1.json();
+    // Extraemos el ID del pedido recién creado
+    const id_pedido_cliente = dataPedido.pedido?.id_pedido_cliente || dataPedido.pedido?.id;
+
+    // 3. Realizar la venta (Esto descuenta stock y genera el movimiento)
     const ventaPayload = {
       id_pedido_cliente,
       id_usuario,
       metodo_pago: 'Efectivo',
-      pago_cliente: cartTotal.value,
+      pago_cliente: amountPaid.value, // Enviamos el monto real recibido
     };
+
     const r2 = await apiFetch('/ventas', {
       method: 'POST',
       body: JSON.stringify(ventaPayload),
     });
+
     if (!r2.ok) {
       const msg = await r2.text();
       throw new Error(msg || 'Error al procesar la venta');
     }
+
+    // 4. Éxito: Limpiamos todo para la siguiente venta
     saleMessage.value = 'Venta realizada con éxito';
     cart.value = [];
+    amountPaid.value = 0; 
   } catch (e) {
     saleError.value = true;
     saleMessage.value = e.message;
