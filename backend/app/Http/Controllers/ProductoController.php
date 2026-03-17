@@ -24,51 +24,54 @@ class ProductoController extends Controller
     }
 
     public function store(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'nombre' => 'required|string', 
-            'marca' => 'required|string|max:25',
-            'precio_venta' => 'required|numeric',
-            'precio_compra' => 'required|numeric',
-            'utilidad' => 'required|numeric',
-            'codigo_barras' => 'required|string',
-            'status' => 'required|string|max:20',
-            'unidad_medida' => 'required|string|max:25',
-            'cantidad_presentacion' => 'required|integer',
-            'color' => 'sometimes|string|max:20',
-            'id_categoria' => 'required|exists:Categoria,id_categoria',
-            // Atributos para la lógica de inventario inicial
-            'cantidad_inicial' => 'nullable|integer|min:0',
-            'id_usuario' => 'required|exists:Usuario,id_usuario', 
-        ]);
+{
+    // 1. Quitamos 'required' de id_usuario para que no falle si la vista no lo envía
+    $validator = Validator::make($request->all(), [
+        'nombre' => 'required|string', 
+        'marca' => 'required|string|max:25',
+        'precio_venta' => 'required|numeric',
+        'precio_compra' => 'required|numeric',
+        'utilidad' => 'required|numeric',
+        'codigo_barras' => 'required|string',
+        'status' => 'required|string|max:20',
+        'unidad_medida' => 'required|string|max:25',
+        'cantidad_presentacion' => 'required|integer',
+        'color' => 'sometimes|string|max:20',
+        'id_categoria' => 'required|exists:Categoria,id_categoria',
+        'cantidad_inicial' => 'nullable|integer|min:0',
+        'id_usuario' => 'nullable|exists:Usuario,id_usuario', // Cambiado a nullable
+    ]);
 
-        if ($validator->fails()) {
-            return response()->json($validator->errors(), 422);
+    if ($validator->fails()) {
+        return response()->json($validator->errors(), 422);
+    }
+
+    return DB::transaction(function () use ($request) {
+        $data = $request->all();
+        
+        // 2. Si la vista no envía id_usuario, le ponemos el ID 1 (Admin) por defecto
+        if (!$request->has('id_usuario')) {
+            $data['id_usuario'] = 1; 
         }
 
-        return DB::transaction(function () use ($request) {
-            // 1. Crear el Producto (Solo guardará lo que esté en $fillable del modelo)
-            $producto = Producto::create($request->all());
+        $producto = Producto::create($data);
 
-            // 2. Si hay una cantidad inicial, registramos el Movimiento
-            $cantidadInicial = $request->input('cantidad_inicial', 0);
-            
-            if ($cantidadInicial > 0) {
-                Movimiento_stock::create([
-                    'tipo_movimiento' => 'Entrada',
-                    'cantidad' => $cantidadInicial,
-                    'stock_anterior' => 0, // Por definición, un producto nuevo inicia en 0
-                    'stock_nuevo' => $cantidadInicial,
-                    'id_producto' => $producto->id_producto, // El ID recién generado
-                    'id_usuario' => $request->id_usuario,
-                ]);
-            }
+        // Lógica de Movimiento de stock...
+        $cantidadInicial = $request->input('cantidad_inicial', 0);
+        if ($cantidadInicial > 0) {
+            Movimiento_stock::create([
+                'tipo_movimiento' => 'Entrada',
+                'cantidad' => $cantidadInicial,
+                'stock_anterior' => 0,
+                'stock_nuevo' => $cantidadInicial,
+                'id_producto' => $producto->id_producto,
+                'id_usuario' => $data['id_usuario'], // Usamos el ID asignado
+            ]);
+        }
 
-            return response()->json([
-                'producto' => $producto
-            ], 201);
-        });
-    }
+        return response()->json(['producto' => $producto], 201);
+    });
+}
 
     public function show($id)
     {
